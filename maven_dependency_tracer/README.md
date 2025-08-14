@@ -1,3 +1,4 @@
+------------------------------------------------------------------------------
 # Maven 依賴追蹤與離線打包增強工具 (Maven Dependency Tracer & Offline Packager)
 
 一個強大的 Python 腳本，用於深度分析 Maven 專案的依賴關係，建立一個最小化且完整的離線 Maven 倉庫，並智慧地分析和解決缺失的依賴問題。
@@ -123,6 +124,114 @@ mvn -s /path/to/offline-repo/settings.xml clean package --offline
 *   `generate_enhanced_report()`: 整合所有分析結果，生成最終的控制台報告和 JSON 文件。
 *   `_generate_recommendations(...)`: 根據分析結果提供可行的修復建議。
 *   `create_offline_settings_xml()`: 根據目標倉庫路徑動態生成 `settings.xml` 文件。
+
+## 📜 授權 (License)
+
+本專案採用 [MIT License](LICENSE) 授權。
+
+------------------------------------------------------------------------------
+# Maven 倉庫快取清理工具 (Maven Repository Cache Cleaner)
+
+一個輕量、快速且安全的 Python 腳本，用於清理本地 Maven 倉庫中的遠端快取文件和損壞的元數據，解決常見的 "Could not resolve dependencies" 問題。
+
+A lightweight, fast, and safe Python script for cleaning remote cache files and corrupted metadata from your local Maven repository, designed to fix common "Could not resolve dependencies" issues.
+
+[![Language](https://img.shields.io/badge/Language-Python%203-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
+## 😠 解決的問題 (The Problem It Solves)
+
+每個 Maven 使用者幾乎都遇過這種情況：專案在昨天還能正常構建，今天卻突然因為無法解析某個依賴而失敗，即使你知道那個依賴明明存在。這通常是由於本地 Maven 倉庫中的快取文件（如 `_remote.repositories` 或 `*.lastUpdated`）損壞或過期導致的。
+
+傳統的解決方法有：
+1.  **手動刪除**：進入特定的依賴目錄，手動尋找並刪除這些快取文件，非常繁瑣且容易出錯。
+2.  **暴力刪除**：直接刪除整個 `~/.m2/repository` 目錄。雖然有效，但會導致所有專案的依賴都需要重新下載，浪費大量時間和網路頻寬。
+
+本工具提供了一個**外科手術式**的解決方案：精準地找出並刪除這些有問題的快取文件，而保留已經下載好的 JAR 和 POM 文件，讓您在幾秒鐘內修復倉庫，無需重新下載任何東西。
+
+## ✨ 主要功能 (Key Features)
+
+*   **精準清理**：專門針對 Maven 的遠端倉庫標識文件進行清理，包括：
+    *   `_remote.repositories`
+    *   所有 `*.lastUpdated` 文件
+    *   `*.repositories`
+    *   `resolver-status.properties`
+*   **清理快取目錄**：可選地刪除由某些 Maven 版本或 IDE 生成的 `.cache` 和 `.meta` 目錄。
+*   **安全第一：模擬執行 (`dry-run`)**：在不實際刪除任何文件的情況下，預覽將會被清理的所有文件和目錄，確保操作的安全性。
+*   **高效並行處理**：利用多執行緒並行掃描和刪除文件，即使面對體積龐大（數十 GB）的倉庫也能快速完成。
+*   **清理空目錄**：在清理快取文件後，自動刪除因此產生的空目錄，保持倉庫結構的整潔。
+*   **詳細報告**：執行完畢後，生成一份清晰的報告，總結清理的文件和目錄數量，並將詳細列表保存到日誌文件中。
+
+## ⚙️ 運作流程 (How It Works)
+
+1.  **掃描目錄**：腳本會遍歷指定的 Maven 倉庫路徑。
+2.  **識別目標**：
+    *   首先，清理頂層的 `.cache` 和 `.meta` 目錄（如果存在）。
+    *   然後，遞迴尋找所有符合清理規則的檔案（如 `_remote.repositories`, `*.lastUpdated` 等）。
+3.  **執行清理**：使用多執行緒並行刪除所有已識別的檔案。
+4.  **清理空巢**：從最深層的目錄開始，反向遍歷並刪除所有空目錄。
+5.  **生成報告**：在控制台輸出摘要報告，並在倉庫根目錄下創建一份 `cache-cleanup-report.txt` 詳細日誌。
+
+## 🚀 使用指南 (Usage)
+
+### 前提條件 (Prerequisites)
+
+*   Python 3.6+
+
+### 安裝 (Installation)
+
+直接下載腳本即可，無需額外安裝。建議將腳本命名為 `maven_cache_cleaner.py` 並賦予執行權限。
+
+```bash
+# 假設腳本名稱為 maven_cache_cleaner.py
+chmod +x maven_cache_cleaner.py
+```
+
+### 命令格式
+
+```bash
+./maven_cache_cleaner.py <repo_path> [options]
+```
+
+### 參數說明
+
+*   `repo_path`: 【必填】你的 Maven 倉庫路徑 (例如 `~/.m2/repository`)。
+*   `--dry-run`, `-n`: **(推薦首次使用)** 模擬執行模式。只列出將要刪除的文件和目錄，不執行任何實際刪除操作。
+*   `--verbose`, `-v`: 顯示詳細的執行日誌，輸出每個被處理的文件或目錄。
+*   `--threads <N>`, `-j <N>`: 設置並行處理的執行緒數量 (預設: 4)。
+*   `--no-empty-dirs`: 禁止在清理後刪除空目錄。
+
+### 實際範例
+
+#### 1. 安全檢查（模擬執行）
+
+在執行任何實際操作前，先用 `dry-run` 模式檢查將會發生什麼。
+
+```bash
+./maven_cache_cleaner.py ~/.m2/repository --dry-run
+```
+
+#### 2. 實際清理
+
+確認模擬執行的結果符合預期後，移除 `--dry-run` 參數來執行真正的清理。
+
+```bash
+# 使用 8 個執行緒並顯示詳細日誌
+./maven_cache_cleaner.py ~/.m2/repository -j 8 -v
+```
+
+執行後，Maven 在下次構建時會重新檢查依賴的元數據，但不會重新下載已有的 JAR 文件。
+
+## 🔬 程式碼分析 (Code Analysis)
+
+該腳本的核心是 `MavenCacheCleaner` 類，其主要方法職責如下：
+
+*   `__init__(...)`: 初始化倉庫路徑和執行選項（如 `dry_run`, `verbose`）。
+*   `clean_cache_directories()`: 專門處理 `.cache` 和 `.meta` 這類頂層快取目錄。
+*   `find_and_clean_cache_files()`: 腳本的核心邏輯所在，使用 `os.walk` 遞迴掃描整個倉庫，識別所有符合清理規則的檔案，並使用 `ThreadPoolExecutor` 進行並行刪除。
+*   `clean_file()`: 執行單個檔案的刪除操作，並包含錯誤處理邏輯。
+*   `clean_empty_directories()`: 在檔案清理後執行，從底向上刪除空目錄，以保持倉庫整潔。
+*   `generate_report()`: 彙總所有操作的統計數據（已刪除檔案數、目錄數、錯誤數），並生成用戶友好的控制台報告和詳細的文字日誌。
 
 ## 📜 授權 (License)
 
